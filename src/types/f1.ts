@@ -75,11 +75,15 @@ export const TEAM_COLORS: Record<string, string> = {
   'Alpine': '#FF87BC',
   'Williams': '#64C4FF',
   'RB': '#6692FF',
+  'Racing Bulls': '#6692FF',
+  'Visa Cash App RB': '#6692FF',
   'Kick Sauber': '#52E252',
   'Haas F1 Team': '#B6BABD',
+  'Haas': '#B6BABD',
   'Sauber': '#52E252',
   'AlphaTauri': '#6692FF',
   'Alfa Romeo': '#C92D4B',
+  'Cadillac': '#D4AF37',
 };
 
 // Circuit images from GitHub (toUpperCase78/formula1-datasets)
