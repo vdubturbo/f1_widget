@@ -4,6 +4,7 @@ import { CIRCUIT_IMAGES } from '../types/f1';
 interface RaceDetailViewProps {
   meeting: Meeting;
   isSprintWeekend?: boolean;
+  isPreviousRace?: boolean;
 }
 
 interface SessionResult {
@@ -50,58 +51,61 @@ interface SessionCardProps {
   isComplete?: boolean;
 }
 
-function SessionCard({ title, results, isComplete = false }: SessionCardProps) {
+function SessionRow({ title, results, isComplete = false }: SessionCardProps) {
   return (
-    <div className={`bg-f1-bg-secondary rounded p-2 border ${isComplete ? 'border-f1-border' : 'border-f1-border/50'}`}>
-      <div className={`text-[10px] font-bold tracking-wider mb-1 ${isComplete ? 'text-f1-text-primary' : 'text-f1-text-muted'}`}>
+    <div className="flex items-center h-12 px-4 bg-f1-bg-secondary/80 rounded border-l-2 border-l-f1-accent-red border-y border-r border-f1-border/50">
+      <div className={`text-sm font-bold tracking-wide w-28 ${isComplete ? 'text-f1-text-primary' : 'text-f1-text-muted'}`}>
         {title}
       </div>
       {isComplete ? (
-        <div className="space-y-0.5">
+        <div className="flex-1 flex gap-6">
           {results.slice(0, 3).map((result) => (
-            <div key={result.position} className="flex items-center text-[10px]">
-              <span className="text-f1-text-muted w-4">{result.position}.</span>
-              <span className="text-f1-text-primary font-medium flex-1 truncate">{result.driver}</span>
-              <span className="text-f1-text-secondary">{result.time}</span>
+            <div key={result.position} className="flex items-center text-sm">
+              <span className="text-f1-accent-red font-bold w-5">{result.position}.</span>
+              <span className="text-f1-text-primary font-medium">{result.driver}</span>
             </div>
           ))}
         </div>
       ) : (
-        <div className="text-[10px] text-f1-text-muted italic">Upcoming</div>
+        <div className="text-sm text-f1-text-secondary">Upcoming</div>
       )}
     </div>
   );
 }
 
-export function RaceDetailView({ meeting, isSprintWeekend = false }: RaceDetailViewProps) {
+export function RaceDetailView({ meeting, isSprintWeekend = false, isPreviousRace = false }: RaceDetailViewProps) {
   const circuitImage = getCircuitImage(meeting);
   const gpName = meeting.meeting_name.replace('Grand Prix', 'GP');
+  const headerLabel = isPreviousRace ? 'LAST RACE' : 'UP NEXT';
 
-  // Regular weekend sessions
+  // Regular weekend sessions - show as complete for previous race
   const regularSessions = [
-    { title: 'FP1', results: STUB_RESULTS, isComplete: false },
-    { title: 'FP2', results: STUB_RESULTS, isComplete: false },
-    { title: 'FP3', results: STUB_RESULTS, isComplete: false },
-    { title: 'QUALIFYING', results: STUB_RESULTS, isComplete: false },
-    { title: 'RACE', results: STUB_RESULTS, isComplete: false },
+    { title: 'FP1', results: STUB_RESULTS, isComplete: isPreviousRace },
+    { title: 'FP2', results: STUB_RESULTS, isComplete: isPreviousRace },
+    { title: 'FP3', results: STUB_RESULTS, isComplete: isPreviousRace },
+    { title: 'QUALIFYING', results: STUB_RESULTS, isComplete: isPreviousRace },
+    { title: 'RACE', results: STUB_RESULTS, isComplete: isPreviousRace },
   ];
 
   // Sprint weekend sessions
   const sprintSessions = [
-    { title: 'FP1', results: STUB_RESULTS, isComplete: false },
-    { title: 'SPRINT QUALI', results: STUB_RESULTS, isComplete: false },
-    { title: 'SPRINT', results: STUB_RESULTS, isComplete: false },
-    { title: 'QUALIFYING', results: STUB_RESULTS, isComplete: false },
-    { title: 'RACE', results: STUB_RESULTS, isComplete: false },
+    { title: 'FP1', results: STUB_RESULTS, isComplete: isPreviousRace },
+    { title: 'SPRINT QUALI', results: STUB_RESULTS, isComplete: isPreviousRace },
+    { title: 'SPRINT', results: STUB_RESULTS, isComplete: isPreviousRace },
+    { title: 'QUALIFYING', results: STUB_RESULTS, isComplete: isPreviousRace },
+    { title: 'RACE', results: STUB_RESULTS, isComplete: isPreviousRace },
   ];
 
   const sessions = isSprintWeekend ? sprintSessions : regularSessions;
 
   return (
-    <div className="h-full flex flex-col p-4">
-      {/* Header with GP name and date */}
-      <div className="flex items-center justify-between mb-2">
+    <div className="h-full flex flex-col p-3">
+      {/* Header with label, GP name and date */}
+      <div className="flex items-center justify-between mb-1">
         <div>
+          <div className="text-[10px] font-bold tracking-widest text-f1-accent-red mb-0.5">
+            {headerLabel}
+          </div>
           <div className="text-lg font-bold text-f1-text-primary">{gpName}</div>
           <div className="text-xs text-f1-text-secondary">
             {meeting.location}, {meeting.country_name}
@@ -112,45 +116,41 @@ export function RaceDetailView({ meeting, isSprintWeekend = false }: RaceDetailV
             {formatDateRange(meeting.date_start)}
           </div>
           {isSprintWeekend && (
-            <div className="text-[10px] bg-f1-accent-red text-white px-1.5 py-0.5 rounded inline-block">
+            <div className="text-[10px] bg-f1-accent-red text-white px-1.5 py-0.5 rounded inline-block mt-1">
               SPRINT
             </div>
           )}
         </div>
       </div>
 
-      {/* Track image */}
-      <div className="flex-shrink-0 bg-f1-bg-secondary rounded-lg border border-f1-border p-3 mb-3">
-        <div className="flex items-center justify-center h-[180px]">
-          {circuitImage ? (
-            <img
-              src={circuitImage}
-              alt={`${meeting.circuit_short_name} circuit`}
-              className="max-w-full max-h-full object-contain"
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
-              }}
-            />
-          ) : (
-            <div className="text-f1-text-muted text-sm">
-              {meeting.circuit_short_name}
-            </div>
-          )}
-        </div>
+      {/* Track image - maximized, no extra wrapper */}
+      <div className="flex-1 flex items-center justify-center min-h-0 overflow-hidden">
+        {circuitImage ? (
+          <img
+            src={circuitImage}
+            alt={`${meeting.circuit_short_name} circuit`}
+            className="w-full h-full object-contain"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+        ) : (
+          <div className="text-f1-text-muted text-sm">
+            {meeting.circuit_short_name}
+          </div>
+        )}
       </div>
 
-      {/* Session results grid */}
-      <div className="flex-1">
-        <div className={`grid gap-2 h-full ${isSprintWeekend ? 'grid-cols-5' : 'grid-cols-5'}`}>
-          {sessions.map((session) => (
-            <SessionCard
-              key={session.title}
-              title={session.title}
-              results={session.results}
-              isComplete={session.isComplete}
-            />
-          ))}
-        </div>
+      {/* Session results as styled rows */}
+      <div className="flex-shrink-0 space-y-1 mt-1">
+        {sessions.map((session) => (
+          <SessionRow
+            key={session.title}
+            title={session.title}
+            results={session.results}
+            isComplete={session.isComplete}
+          />
+        ))}
       </div>
     </div>
   );

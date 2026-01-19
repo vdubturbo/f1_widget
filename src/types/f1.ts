@@ -57,6 +57,37 @@ export interface EnrichedDriverStanding extends DriverStanding {
   headshot_url?: string;
 }
 
+export interface Session {
+  session_key: number;
+  session_name: string;
+  session_type: string;
+  meeting_key: number;
+  date_start: string;
+  date_end: string;
+}
+
+export interface Position {
+  session_key: number;
+  meeting_key: number;
+  driver_number: number;
+  position: number;
+  date: string;
+}
+
+export interface SessionResult {
+  position: number;
+  driver_number: number;
+  driver_name?: string;
+  team_name?: string;
+}
+
+export interface RaceSessionData {
+  session_name: string;
+  session_type: string;
+  results: SessionResult[];
+  isComplete: boolean;
+}
+
 export interface F1Data {
   meetings: Meeting[];
   driverStandings: EnrichedDriverStanding[];

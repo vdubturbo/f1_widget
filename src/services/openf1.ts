@@ -1,4 +1,4 @@
-import type { Meeting, DriverStanding, ConstructorStanding, Driver } from '../types/f1';
+import type { Meeting, DriverStanding, ConstructorStanding, Driver, Session, Position } from '../types/f1';
 
 const BASE_URL = 'https://api.openf1.org/v1';
 
@@ -43,4 +43,28 @@ export function getUniqueDrivers(drivers: Driver[]): Driver[] {
     }
   }
   return Array.from(driverMap.values());
+}
+
+export async function getSessions(meetingKey: number): Promise<Session[]> {
+  const response = await fetch(`${BASE_URL}/sessions?meeting_key=${meetingKey}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch sessions: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+export async function getPositions(sessionKey: number): Promise<Position[]> {
+  const response = await fetch(`${BASE_URL}/position?session_key=${sessionKey}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch positions: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+export async function getDriversBySession(sessionKey: number): Promise<Driver[]> {
+  const response = await fetch(`${BASE_URL}/drivers?session_key=${sessionKey}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch drivers: ${response.statusText}`);
+  }
+  return response.json();
 }

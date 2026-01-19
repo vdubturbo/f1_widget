@@ -6,31 +6,63 @@ import { ScheduleView, getSchedulePageCount, findNextRaceIndex } from './Schedul
 import { DriverStandings, getDriverPageCount } from './DriverStandings';
 import { ConstructorStandings, getConstructorPageCount } from './ConstructorStandings';
 import { RaceDetailView, isSprintWeekend } from './RaceDetailView';
+import type { Meeting } from '../types/f1';
 
 const SCHEDULE_PER_PAGE = 10;
 const DRIVERS_PER_PAGE = 11;
 const CONSTRUCTORS_PER_PAGE = 11;
 
-// Set to true to always show race detail view (for testing)
-const FORCE_RACE_DETAIL = true;
+// Find the previous race (most recent completed race)
+function findPreviousRace(meetings: Meeting[]): Meeting | null {
+  const now = new Date();
+  // Find the last meeting that has already started
+  for (let i = meetings.length - 1; i >= 0; i--) {
+    const raceEnd = new Date(meetings[i].date_start);
+    raceEnd.setDate(raceEnd.getDate() + 2); // Race day is typically Sunday
+    if (raceEnd < now) {
+      return meetings[i];
+    }
+  }
+  return null;
+}
+
+// Find the next race (upcoming race)
+function findNextRace(meetings: Meeting[]): Meeting | null {
+  const now = new Date();
+  for (const meeting of meetings) {
+    const raceStart = new Date(meeting.date_start);
+    if (raceStart > now) {
+      return meeting;
+    }
+  }
+  return null;
+}
 
 export function Dashboard() {
   const { data, loading, error } = useOpenF1Data();
 
-  // Get the next race meeting
-  const nextRace = useMemo(() => {
-    if (!data?.meetings) return null;
-    const nextIndex = findNextRaceIndex(data.meetings);
-    return nextIndex >= 0 ? data.meetings[nextIndex] : null;
+  // Get the previous and next race meetings
+  const { previousRace, nextRace, nextRaceIndex } = useMemo(() => {
+    if (!data?.meetings) return { previousRace: null, nextRace: null, nextRaceIndex: -1 };
+    const nextIdx = findNextRaceIndex(data.meetings);
+    return {
+      previousRace: findPreviousRace(data.meetings),
+      nextRace: findNextRace(data.meetings),
+      nextRaceIndex: nextIdx,
+    };
   }, [data?.meetings]);
 
   // Calculate pagination
+  // Order: schedule -> drivers -> constructors -> previous race -> next race
   const pagination = useMemo(() => {
-    if (!data) return { raceDetailPages: 0, schedulePages: 0, driverPages: 0, constructorPages: 0, totalViews: 1 };
-
-    // Add race detail page if we're showing it
-    const showRaceDetail = FORCE_RACE_DETAIL && nextRace;
-    const raceDetailPages = showRaceDetail ? 1 : 0;
+    if (!data) return {
+      schedulePages: 0,
+      driverPages: 0,
+      constructorPages: 0,
+      previousRacePages: 0,
+      nextRacePages: 0,
+      totalViews: 1
+    };
 
     const schedulePages = getSchedulePageCount(data.meetings.length, SCHEDULE_PER_PAGE);
     const driverPages = data.driverStandings.length > 0
@@ -39,23 +71,20 @@ export function Dashboard() {
     const constructorPages = data.constructorStandings.length > 0
       ? getConstructorPageCount(data.constructorStandings.length, CONSTRUCTORS_PER_PAGE)
       : 0;
+    const previousRacePages = previousRace ? 1 : 0;
+    const nextRacePages = nextRace ? 1 : 0;
 
     return {
-      raceDetailPages,
       schedulePages,
       driverPages,
       constructorPages,
-      totalViews: raceDetailPages + schedulePages + driverPages + constructorPages,
+      previousRacePages,
+      nextRacePages,
+      totalViews: schedulePages + driverPages + constructorPages + previousRacePages + nextRacePages,
     };
-  }, [data, nextRace]);
+  }, [data, previousRace, nextRace]);
 
   const { currentIndex, totalViews } = useRotation(pagination.totalViews, 10000);
-
-  // Calculate next race index for highlighting
-  const nextRaceIndex = useMemo(() => {
-    if (!data?.meetings) return -1;
-    return findNextRaceIndex(data.meetings);
-  }, [data?.meetings]);
 
   if (loading) {
     return (
@@ -81,22 +110,12 @@ export function Dashboard() {
   }
 
   // Determine which view to show based on currentIndex
+  // Order: schedule -> drivers -> constructors -> previous race -> next race
   const renderCurrentView = () => {
-    const { raceDetailPages, schedulePages, driverPages } = pagination;
+    const { schedulePages, driverPages, constructorPages, previousRacePages } = pagination;
     let viewIndex = currentIndex;
 
-    // Race detail page (first)
-    if (raceDetailPages > 0 && viewIndex < raceDetailPages) {
-      return (
-        <RaceDetailView
-          meeting={nextRace!}
-          isSprintWeekend={isSprintWeekend(nextRace!.meeting_name)}
-        />
-      );
-    }
-    viewIndex -= raceDetailPages;
-
-    // Schedule pages
+    // Schedule pages (first)
     if (viewIndex < schedulePages) {
       return (
         <ScheduleView
@@ -122,11 +141,35 @@ export function Dashboard() {
     viewIndex -= driverPages;
 
     // Constructor pages
+    if (viewIndex < constructorPages) {
+      return (
+        <ConstructorStandings
+          standings={data?.constructorStandings || []}
+          startIndex={viewIndex * CONSTRUCTORS_PER_PAGE}
+          itemsPerPage={CONSTRUCTORS_PER_PAGE}
+        />
+      );
+    }
+    viewIndex -= constructorPages;
+
+    // Previous race results
+    if (previousRacePages > 0 && viewIndex < previousRacePages) {
+      return (
+        <RaceDetailView
+          meeting={previousRace!}
+          isSprintWeekend={isSprintWeekend(previousRace!.meeting_name)}
+          isPreviousRace={true}
+        />
+      );
+    }
+    viewIndex -= previousRacePages;
+
+    // Next race preview (last)
     return (
-      <ConstructorStandings
-        standings={data?.constructorStandings || []}
-        startIndex={viewIndex * CONSTRUCTORS_PER_PAGE}
-        itemsPerPage={CONSTRUCTORS_PER_PAGE}
+      <RaceDetailView
+        meeting={nextRace!}
+        isSprintWeekend={isSprintWeekend(nextRace!.meeting_name)}
+        isPreviousRace={false}
       />
     );
   };
