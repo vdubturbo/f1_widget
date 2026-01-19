@@ -5,17 +5,32 @@ import { ViewTransition } from './ViewTransition';
 import { ScheduleView, getSchedulePageCount, findNextRaceIndex } from './ScheduleView';
 import { DriverStandings, getDriverPageCount } from './DriverStandings';
 import { ConstructorStandings, getConstructorPageCount } from './ConstructorStandings';
+import { RaceDetailView, isSprintWeekend } from './RaceDetailView';
 
 const SCHEDULE_PER_PAGE = 10;
 const DRIVERS_PER_PAGE = 11;
 const CONSTRUCTORS_PER_PAGE = 11;
 
+// Set to true to always show race detail view (for testing)
+const FORCE_RACE_DETAIL = true;
+
 export function Dashboard() {
   const { data, loading, error } = useOpenF1Data();
 
+  // Get the next race meeting
+  const nextRace = useMemo(() => {
+    if (!data?.meetings) return null;
+    const nextIndex = findNextRaceIndex(data.meetings);
+    return nextIndex >= 0 ? data.meetings[nextIndex] : null;
+  }, [data?.meetings]);
+
   // Calculate pagination
   const pagination = useMemo(() => {
-    if (!data) return { schedulePages: 0, driverPages: 0, constructorPages: 0, totalViews: 1 };
+    if (!data) return { raceDetailPages: 0, schedulePages: 0, driverPages: 0, constructorPages: 0, totalViews: 1 };
+
+    // Add race detail page if we're showing it
+    const showRaceDetail = FORCE_RACE_DETAIL && nextRace;
+    const raceDetailPages = showRaceDetail ? 1 : 0;
 
     const schedulePages = getSchedulePageCount(data.meetings.length, SCHEDULE_PER_PAGE);
     const driverPages = data.driverStandings.length > 0
@@ -26,12 +41,13 @@ export function Dashboard() {
       : 0;
 
     return {
+      raceDetailPages,
       schedulePages,
       driverPages,
       constructorPages,
-      totalViews: schedulePages + driverPages + constructorPages,
+      totalViews: raceDetailPages + schedulePages + driverPages + constructorPages,
     };
-  }, [data]);
+  }, [data, nextRace]);
 
   const { currentIndex, totalViews } = useRotation(pagination.totalViews, 10000);
 
@@ -66,41 +82,50 @@ export function Dashboard() {
 
   // Determine which view to show based on currentIndex
   const renderCurrentView = () => {
-    const { schedulePages, driverPages } = pagination;
+    const { raceDetailPages, schedulePages, driverPages } = pagination;
+    let viewIndex = currentIndex;
+
+    // Race detail page (first)
+    if (raceDetailPages > 0 && viewIndex < raceDetailPages) {
+      return (
+        <RaceDetailView
+          meeting={nextRace!}
+          isSprintWeekend={isSprintWeekend(nextRace!.meeting_name)}
+        />
+      );
+    }
+    viewIndex -= raceDetailPages;
 
     // Schedule pages
-    if (currentIndex < schedulePages) {
-      const pageIndex = currentIndex;
+    if (viewIndex < schedulePages) {
       return (
         <ScheduleView
           meetings={data?.meetings || []}
-          startIndex={pageIndex * SCHEDULE_PER_PAGE}
+          startIndex={viewIndex * SCHEDULE_PER_PAGE}
           itemsPerPage={SCHEDULE_PER_PAGE}
           globalNextRaceIndex={nextRaceIndex}
         />
       );
     }
+    viewIndex -= schedulePages;
 
     // Driver pages
-    const driverStartIndex = schedulePages;
-    if (currentIndex < driverStartIndex + driverPages) {
-      const pageIndex = currentIndex - driverStartIndex;
+    if (viewIndex < driverPages) {
       return (
         <DriverStandings
           standings={data?.driverStandings || []}
-          startIndex={pageIndex * DRIVERS_PER_PAGE}
+          startIndex={viewIndex * DRIVERS_PER_PAGE}
           itemsPerPage={DRIVERS_PER_PAGE}
         />
       );
     }
+    viewIndex -= driverPages;
 
     // Constructor pages
-    const constructorStartIndex = driverStartIndex + driverPages;
-    const pageIndex = currentIndex - constructorStartIndex;
     return (
       <ConstructorStandings
         standings={data?.constructorStandings || []}
-        startIndex={pageIndex * CONSTRUCTORS_PER_PAGE}
+        startIndex={viewIndex * CONSTRUCTORS_PER_PAGE}
         itemsPerPage={CONSTRUCTORS_PER_PAGE}
       />
     );
