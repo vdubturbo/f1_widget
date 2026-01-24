@@ -96,6 +96,97 @@ export interface F1Data {
 
 export type View = 'schedule' | 'drivers' | 'constructors';
 
+// Race result for a specific driver
+export interface DriverRaceResult {
+  meetingKey: number;
+  meetingName: string;
+  position: number | null; // null = DNF/DNS
+  points: number;
+  isSprintResult?: boolean;
+}
+
+// Extended driver data for the driver card
+export interface DriverCardData {
+  // From OpenF1 API
+  driverNumber: number;
+  fullName: string;
+  firstName: string;
+  lastName: string;
+  nameAcronym: string;
+  teamName: string;
+  teamColour: string;
+  countryCode: string;
+  headshotUrl: string;
+  // From standings
+  championshipPosition: number;
+  championshipPoints: number;
+  // Calculated stats
+  wins: number;
+  podiums: number;
+  poles: number;
+  fastestLaps: number;
+  dnfs: number;
+  // Recent form (last 5 races)
+  recentResults: DriverRaceResult[];
+  // Teammate comparison
+  teammate?: {
+    name: string;
+    driverNumber: number;
+    points: number;
+    qualifyingBattles: { wins: number; losses: number };
+    raceBattles: { wins: number; losses: number };
+  };
+  // From static profile data
+  age?: number;
+  birthplace?: string;
+  nationality?: string;
+  manager?: string;
+  physio?: string;
+  engineer?: string;
+}
+
+// Team race result for recent form
+export interface TeamRaceResult {
+  meetingKey: number;
+  meetingName: string;
+  driver1Position: number | null;
+  driver2Position: number | null;
+  totalPoints: number;
+}
+
+// Extended team data for the team card
+export interface TeamCardData {
+  // From OpenF1 API
+  teamName: string;
+  teamColour: string;
+  // From standings
+  championshipPosition: number;
+  championshipPoints: number;
+  // Calculated stats
+  wins: number;
+  podiums: number;
+  poles: number;
+  oneTwo: number; // 1-2 finishes
+  // Drivers
+  drivers: {
+    driverNumber: number;
+    name: string;
+    nameAcronym: string;
+    points: number;
+    headshotUrl?: string;
+  }[];
+  // Recent form (last 5 races)
+  recentResults: TeamRaceResult[];
+  // From static profile data
+  fullName?: string;
+  base?: string;
+  teamPrincipal?: string;
+  technicalDirector?: string;
+  powerUnit?: string;
+  firstEntry?: number;
+  championships?: number;
+}
+
 // Team colors mapping (fallback if API doesn't provide)
 export const TEAM_COLORS: Record<string, string> = {
   'Red Bull Racing': '#3671C6',

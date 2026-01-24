@@ -1,0 +1,22 @@
+{
+  "availableCards": [
+    { "id": "schedule", "label": "Race Schedule", "enabled": true },
+    { "id": "drivers", "label": "Driver Standings", "enabled": true },
+    { "id": "constructors", "label": "Constructor Standings", "enabled": true },
+    { "id": "previousRace", "label": "Previous Race", "enabled": true },
+    { "id": "nextRace", "label": "Next Race", "enabled": true },
+    { "id": "driverCard", "label": "Driver Card", "enabled": true },
+    { "id": "teamCard", "label": "Team Card", "enabled": true }
+  ],
+  "intervalRange": { "min": 5000, "max": 60000, "default": 10000 },
+  "itemsPerPage": {
+    "schedule": 10,
+    "drivers": 11,
+    "constructors": 11
+  },
+  "features": {
+    "allowReordering": true,
+    "allowIntervalChange": true,
+    "showUserConfigMenu": true
+  }
+}

@@ -3,6 +3,7 @@ import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import cors from 'cors';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { tracker } from './tracker.js';
 
@@ -90,6 +91,47 @@ app.get('/api/health', (req, res) => {
 });
 
 // ============================================
+// Config Endpoints
+// ============================================
+
+const configPath = path.join(__dirname, '../config/dashboard.json');
+
+// Always available - serve config to clients
+app.get('/api/config', (req, res) => {
+  try {
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    res.json(config);
+  } catch (error) {
+    console.error('[Config] Error reading config:', error);
+    res.status(500).json({ error: 'Failed to load config' });
+  }
+});
+
+// DEV only - admin can modify config
+if (process.env.NODE_ENV !== 'production') {
+  app.get('/api/admin/config', (req, res) => {
+    try {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      res.json(config);
+    } catch (error) {
+      console.error('[Admin] Error reading config:', error);
+      res.status(500).json({ error: 'Failed to load config' });
+    }
+  });
+
+  app.post('/api/admin/config', (req, res) => {
+    try {
+      fs.writeFileSync(configPath, JSON.stringify(req.body, null, 2));
+      console.log('[Admin] Config updated');
+      res.json({ success: true });
+    } catch (error) {
+      console.error('[Admin] Error writing config:', error);
+      res.status(500).json({ error: 'Failed to save config' });
+    }
+  });
+}
+
+// ============================================
 // Serve React App
 // ============================================
 
@@ -110,4 +152,8 @@ server.listen(PORT, () => {
   console.log(`   - WebSocket: ws://localhost:${PORT}/ws`);
   console.log(`   - Stats API: http://localhost:${PORT}/api/stats`);
   console.log(`   - Health:    http://localhost:${PORT}/api/health`);
+  console.log(`   - Config:    http://localhost:${PORT}/api/config`);
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`   - Admin:     http://localhost:${PORT}/api/admin/config (DEV only)`);
+  }
 });

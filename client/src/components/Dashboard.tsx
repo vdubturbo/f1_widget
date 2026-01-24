@@ -1,16 +1,17 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useOpenF1Data } from '../hooks/useOpenF1';
 import { useRotation } from '../hooks/useRotation';
+import { useConfig } from '../hooks/useConfig';
 import { ViewTransition } from './ViewTransition';
 import { ScheduleView, getSchedulePageCount, findNextRaceIndex } from './ScheduleView';
 import { DriverStandings, getDriverPageCount } from './DriverStandings';
 import { ConstructorStandings, getConstructorPageCount } from './ConstructorStandings';
 import { RaceDetailView, isSprintWeekend } from './RaceDetailView';
-import type { Meeting } from '../types/f1';
-
-const SCHEDULE_PER_PAGE = 10;
-const DRIVERS_PER_PAGE = 11;
-const CONSTRUCTORS_PER_PAGE = 11;
+import { DriverCard } from './DriverCard';
+import { TeamCard } from './TeamCard';
+import { UserConfigMenu } from './UserConfigMenu';
+import type { Meeting, Driver } from '../types/f1';
+import type { CardId } from '../types/config';
 
 // Find the previous race (most recent completed race)
 function findPreviousRace(meetings: Meeting[]): Meeting | null {
@@ -38,8 +39,22 @@ function findNextRace(meetings: Meeting[]): Meeting | null {
   return null;
 }
 
+interface ViewItem {
+  cardId: CardId;
+  pageIndex: number;
+}
+
 export function Dashboard() {
   const { data, loading, error } = useOpenF1Data();
+  const { adminConfig, userConfig, loading: configLoading } = useConfig();
+  const [isConfigMenuOpen, setIsConfigMenuOpen] = useState(false);
+
+  // Get items per page from config
+  const itemsPerPage = adminConfig?.itemsPerPage ?? {
+    schedule: 10,
+    drivers: 11,
+    constructors: 11,
+  };
 
   // Get the previous and next race meetings
   const { previousRace, nextRace, nextRaceIndex } = useMemo(() => {
@@ -52,41 +67,51 @@ export function Dashboard() {
     };
   }, [data?.meetings]);
 
-  // Calculate pagination
-  // Order: schedule -> drivers -> constructors -> previous race -> next race
-  const pagination = useMemo(() => {
-    if (!data) return {
-      schedulePages: 0,
-      driverPages: 0,
-      constructorPages: 0,
-      previousRacePages: 0,
-      nextRacePages: 0,
-      totalViews: 1
-    };
-
-    const schedulePages = getSchedulePageCount(data.meetings.length, SCHEDULE_PER_PAGE);
-    const driverPages = data.driverStandings.length > 0
-      ? getDriverPageCount(data.driverStandings.length, DRIVERS_PER_PAGE)
-      : 0;
-    const constructorPages = data.constructorStandings.length > 0
-      ? getConstructorPageCount(data.constructorStandings.length, CONSTRUCTORS_PER_PAGE)
-      : 0;
-    const previousRacePages = previousRace ? 1 : 0;
-    const nextRacePages = nextRace ? 1 : 0;
+  // Calculate page counts for each card type
+  const pageCounts = useMemo(() => {
+    if (!data) return { schedule: 0, drivers: 0, constructors: 0, previousRace: 0, nextRace: 0, driverCard: 0, teamCard: 0 };
 
     return {
-      schedulePages,
-      driverPages,
-      constructorPages,
-      previousRacePages,
-      nextRacePages,
-      totalViews: schedulePages + driverPages + constructorPages + previousRacePages + nextRacePages,
+      schedule: getSchedulePageCount(data.meetings.length, itemsPerPage.schedule),
+      drivers: data.driverStandings.length > 0
+        ? getDriverPageCount(data.driverStandings.length, itemsPerPage.drivers)
+        : 0,
+      constructors: data.constructorStandings.length > 0
+        ? getConstructorPageCount(data.constructorStandings.length, itemsPerPage.constructors)
+        : 0,
+      previousRace: previousRace ? 1 : 0,
+      nextRace: nextRace ? 1 : 0,
+      driverCard: data.driverStandings.length > 0 ? 1 : 0,
+      teamCard: data.constructorStandings.length > 0 ? 1 : 0,
     };
-  }, [data, previousRace, nextRace]);
+  }, [data, previousRace, nextRace, itemsPerPage]);
 
-  const { currentIndex, totalViews } = useRotation(pagination.totalViews, 10000);
+  // Build view sequence from config
+  const views: ViewItem[] = useMemo(() => {
+    const result: ViewItem[] = [];
 
-  if (loading) {
+    // Use card order from user config, filtered by selected cards
+    const orderedCards = userConfig.cardOrder.filter(id =>
+      userConfig.selectedCards.includes(id)
+    );
+
+    for (const cardId of orderedCards) {
+      const pageCount = pageCounts[cardId] || 0;
+      for (let i = 0; i < pageCount; i++) {
+        result.push({ cardId, pageIndex: i });
+      }
+    }
+
+    return result;
+  }, [userConfig.cardOrder, userConfig.selectedCards, pageCounts]);
+
+  const totalViews = views.length || 1;
+  const { currentIndex } = useRotation(totalViews, userConfig.interval);
+
+  // Show settings button?
+  const showSettingsButton = adminConfig?.features.showUserConfigMenu ?? true;
+
+  if (loading || configLoading) {
     return (
       <div className="widget-container bg-f1-bg-primary flex items-center justify-center rounded-xl">
         <div className="text-center">
@@ -109,69 +134,114 @@ export function Dashboard() {
     );
   }
 
-  // Determine which view to show based on currentIndex
-  // Order: schedule -> drivers -> constructors -> previous race -> next race
+  // Render the current view based on the view sequence
   const renderCurrentView = () => {
-    const { schedulePages, driverPages, constructorPages, previousRacePages } = pagination;
-    let viewIndex = currentIndex;
-
-    // Schedule pages (first)
-    if (viewIndex < schedulePages) {
+    if (views.length === 0) {
       return (
-        <ScheduleView
-          meetings={data?.meetings || []}
-          startIndex={viewIndex * SCHEDULE_PER_PAGE}
-          itemsPerPage={SCHEDULE_PER_PAGE}
-          globalNextRaceIndex={nextRaceIndex}
-        />
+        <div className="flex items-center justify-center h-full text-f1-text-secondary">
+          No cards selected
+        </div>
       );
     }
-    viewIndex -= schedulePages;
 
-    // Driver pages
-    if (viewIndex < driverPages) {
-      return (
-        <DriverStandings
-          standings={data?.driverStandings || []}
-          startIndex={viewIndex * DRIVERS_PER_PAGE}
-          itemsPerPage={DRIVERS_PER_PAGE}
-        />
-      );
+    const currentView = views[currentIndex];
+    if (!currentView) return null;
+
+    const { cardId, pageIndex } = currentView;
+
+    switch (cardId) {
+      case 'schedule':
+        return (
+          <ScheduleView
+            meetings={data?.meetings || []}
+            startIndex={pageIndex * itemsPerPage.schedule}
+            itemsPerPage={itemsPerPage.schedule}
+            globalNextRaceIndex={nextRaceIndex}
+          />
+        );
+      case 'drivers':
+        return (
+          <DriverStandings
+            standings={data?.driverStandings || []}
+            startIndex={pageIndex * itemsPerPage.drivers}
+            itemsPerPage={itemsPerPage.drivers}
+          />
+        );
+      case 'constructors':
+        return (
+          <ConstructorStandings
+            standings={data?.constructorStandings || []}
+            startIndex={pageIndex * itemsPerPage.constructors}
+            itemsPerPage={itemsPerPage.constructors}
+          />
+        );
+      case 'previousRace':
+        return previousRace ? (
+          <RaceDetailView
+            meeting={previousRace}
+            isSprintWeekend={isSprintWeekend(previousRace.meeting_name)}
+            isPreviousRace={true}
+          />
+        ) : null;
+      case 'nextRace':
+        return nextRace ? (
+          <RaceDetailView
+            meeting={nextRace}
+            isSprintWeekend={isSprintWeekend(nextRace.meeting_name)}
+            isPreviousRace={false}
+          />
+        ) : null;
+      case 'driverCard': {
+        // Use favorite driver from config, or fall back to first driver
+        const favoriteNumber = userConfig.favoriteDriverNumber;
+        const standing = favoriteNumber
+          ? data?.driverStandings.find(d => d.driver_number === favoriteNumber)
+          : data?.driverStandings[0];
+        if (!standing) return null;
+
+        // Create a Driver object from the enriched standing
+        const driverObj: Driver = {
+          driver_number: standing.driver_number,
+          broadcast_name: standing.broadcast_name || '',
+          full_name: standing.full_name || '',
+          first_name: standing.first_name || '',
+          last_name: standing.last_name || '',
+          name_acronym: standing.name_acronym || '',
+          team_name: standing.team_name || '',
+          team_colour: standing.team_colour || '',
+          country_code: standing.country_code || '',
+          headshot_url: standing.headshot_url || '',
+        };
+
+        return (
+          <DriverCard
+            driverNumber={standing.driver_number}
+            driver={driverObj}
+            standings={data?.driverStandings || []}
+            meetings={data?.meetings || []}
+          />
+        );
+      }
+      case 'teamCard': {
+        // Use favorite team from config, or fall back to first team
+        const favoriteTeamName = userConfig.favoriteTeam;
+        const constructorStanding = favoriteTeamName
+          ? data?.constructorStandings.find(c => c.team_name === favoriteTeamName)
+          : data?.constructorStandings[0];
+        if (!constructorStanding) return null;
+
+        return (
+          <TeamCard
+            teamName={constructorStanding.team_name}
+            constructorStanding={constructorStanding}
+            driverStandings={data?.driverStandings || []}
+            meetings={data?.meetings || []}
+          />
+        );
+      }
+      default:
+        return null;
     }
-    viewIndex -= driverPages;
-
-    // Constructor pages
-    if (viewIndex < constructorPages) {
-      return (
-        <ConstructorStandings
-          standings={data?.constructorStandings || []}
-          startIndex={viewIndex * CONSTRUCTORS_PER_PAGE}
-          itemsPerPage={CONSTRUCTORS_PER_PAGE}
-        />
-      );
-    }
-    viewIndex -= constructorPages;
-
-    // Previous race results
-    if (previousRacePages > 0 && viewIndex < previousRacePages) {
-      return (
-        <RaceDetailView
-          meeting={previousRace!}
-          isSprintWeekend={isSprintWeekend(previousRace!.meeting_name)}
-          isPreviousRace={true}
-        />
-      );
-    }
-    viewIndex -= previousRacePages;
-
-    // Next race preview (last)
-    return (
-      <RaceDetailView
-        meeting={nextRace!}
-        isSprintWeekend={isSprintWeekend(nextRace!.meeting_name)}
-        isPreviousRace={false}
-      />
-    );
   };
 
   return (
@@ -183,21 +253,61 @@ export function Dashboard() {
         </ViewTransition>
       </div>
 
-      {/* View indicator dots */}
-      <div className="flex justify-center gap-1.5 pb-3">
-        {Array.from({ length: totalViews }).map((_, index) => (
-          <div
-            key={index}
-            className={`
-              h-1.5 rounded-full transition-all duration-300
-              ${index === currentIndex
-                ? 'bg-f1-accent-red w-4'
-                : 'bg-f1-border w-1.5'
-              }
-            `}
-          />
-        ))}
+      {/* Bottom bar: indicator dots + settings button */}
+      <div className="flex items-center justify-center pb-3 px-3">
+        {/* Spacer for balance */}
+        <div className="w-8" />
+
+        {/* View indicator dots */}
+        <div className="flex-1 flex justify-center gap-1.5">
+          {Array.from({ length: totalViews }).map((_, index) => (
+            <div
+              key={index}
+              className={`
+                h-1.5 rounded-full transition-all duration-300
+                ${index === currentIndex
+                  ? 'bg-f1-accent-red w-4'
+                  : 'bg-f1-border w-1.5'
+                }
+              `}
+            />
+          ))}
+        </div>
+
+        {/* Settings button */}
+        {showSettingsButton ? (
+          <button
+            onClick={() => setIsConfigMenuOpen(true)}
+            className="w-8 h-8 flex items-center justify-center text-f1-text-muted hover:text-f1-text-primary transition-colors"
+            aria-label="Open settings"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+              />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+              />
+            </svg>
+          </button>
+        ) : (
+          <div className="w-8" />
+        )}
       </div>
+
+      {/* User config menu */}
+      <UserConfigMenu
+        isOpen={isConfigMenuOpen}
+        onClose={() => setIsConfigMenuOpen(false)}
+        drivers={data?.driverStandings || []}
+        teams={data?.constructorStandings || []}
+      />
     </div>
   );
 }
