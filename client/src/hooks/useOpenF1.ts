@@ -69,11 +69,33 @@ export function useOpenF1Data() {
           };
         }).sort((a, b) => a.position_current - b.position_current);
 
-        // Enrich constructor standings with team colors
-        constructorStandings = constructorStandingsData.map(standing => ({
-          ...standing,
-          team_colour: TEAM_COLORS[standing.team_name] || '#666666',
-        })).sort((a, b) => a.position_current - b.position_current);
+        // Infer missing team names from driver data by matching points totals
+        const teamPointsMap = new Map<string, number>();
+        for (const driver of enrichedDriverStandings) {
+          if (driver.team_name) {
+            teamPointsMap.set(driver.team_name, (teamPointsMap.get(driver.team_name) || 0) + (driver.points_current || 0));
+          }
+        }
+
+        // Enrich constructor standings with team colors and fill missing names
+        constructorStandings = constructorStandingsData.map(standing => {
+          let teamName = standing.team_name;
+          if (!teamName) {
+            // Find a team whose driver points sum matches this constructor's points
+            for (const [name, points] of teamPointsMap.entries()) {
+              if (points === standing.points_current && !constructorStandingsData.some(s => s.team_name === name)) {
+                teamName = name;
+                teamPointsMap.delete(name);
+                break;
+              }
+            }
+          }
+          return {
+            ...standing,
+            team_name: teamName || `Team P${standing.position_current}`,
+            team_colour: TEAM_COLORS[teamName || ''] || '#666666',
+          };
+        }).sort((a, b) => a.position_current - b.position_current);
 
       } catch (standingsError) {
         console.warn('Could not fetch standings data (may be offseason):', standingsError);

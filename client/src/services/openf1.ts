@@ -17,7 +17,11 @@ export async function getDriverStandings(): Promise<DriverStanding[]> {
   if (!response.ok) {
     throw new Error(`Failed to fetch driver standings: ${response.statusText}`);
   }
-  return response.json();
+  const data = await response.json();
+  return data.map((d: DriverStanding) => ({
+    ...d,
+    points_current: d.points_current ?? 0,
+  }));
 }
 
 export async function getConstructorStandings(): Promise<ConstructorStanding[]> {
@@ -25,7 +29,11 @@ export async function getConstructorStandings(): Promise<ConstructorStanding[]> 
   if (!response.ok) {
     throw new Error(`Failed to fetch constructor standings: ${response.statusText}`);
   }
-  return response.json();
+  const data = await response.json();
+  return data.map((d: ConstructorStanding) => ({
+    ...d,
+    points_current: d.points_current ?? 0,
+  }));
 }
 
 export async function getDrivers(): Promise<Driver[]> {

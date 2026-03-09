@@ -106,7 +106,7 @@ export function Dashboard() {
   }, [userConfig.cardOrder, userConfig.selectedCards, pageCounts]);
 
   const totalViews = views.length || 1;
-  const { currentIndex } = useRotation(totalViews, userConfig.interval);
+  const { currentIndex, goToIndex } = useRotation(totalViews, userConfig.interval);
 
   // Show settings button?
   const showSettingsButton = adminConfig?.features.showUserConfigMenu ?? true;
@@ -261,15 +261,17 @@ export function Dashboard() {
         {/* View indicator dots */}
         <div className="flex-1 flex justify-center gap-1.5">
           {Array.from({ length: totalViews }).map((_, index) => (
-            <div
+            <button
               key={index}
+              onClick={() => goToIndex(index)}
               className={`
-                h-1.5 rounded-full transition-all duration-300
+                h-1.5 rounded-full transition-all duration-300 cursor-pointer
                 ${index === currentIndex
                   ? 'bg-f1-accent-red w-4'
-                  : 'bg-f1-border w-1.5'
+                  : 'bg-f1-border w-1.5 hover:bg-f1-text-muted'
                 }
               `}
+              aria-label={`Go to view ${index + 1}`}
             />
           ))}
         </div>

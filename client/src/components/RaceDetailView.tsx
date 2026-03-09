@@ -1,5 +1,15 @@
-import type { Meeting } from '../types/f1';
+import { useState, useEffect } from 'react';
+import type { Meeting, Driver } from '../types/f1';
 import { CIRCUIT_IMAGES } from '../types/f1';
+import { getSessions, getRaceResults, getDriversBySession } from '../services/openf1';
+
+// Cache results per meeting_key with 6-hour TTL
+const resultsCache = new Map<number, { data: SessionData[]; timestamp: number }>();
+const CACHE_TTL = 6 * 60 * 60 * 1000; // 6 hours
+
+function delay(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 interface RaceDetailViewProps {
   meeting: Meeting;
@@ -11,15 +21,13 @@ interface SessionResult {
   position: number;
   driver: string;
   team: string;
-  time?: string;
 }
 
-// Stubbed session results - will be replaced with API data
-const STUB_RESULTS: SessionResult[] = [
-  { position: 1, driver: 'L. NORRIS', team: 'McLaren', time: '1:23.456' },
-  { position: 2, driver: 'M. VERSTAPPEN', team: 'Red Bull Racing', time: '+0.123' },
-  { position: 3, driver: 'O. PIASTRI', team: 'McLaren', time: '+0.456' },
-];
+interface SessionData {
+  title: string;
+  results: SessionResult[];
+  isComplete: boolean;
+}
 
 function getCircuitImage(meeting: Meeting): string | null {
   const fieldsToTry = [
@@ -45,13 +53,34 @@ function formatDateRange(dateStart: string): string {
   return `${month} ${startDay}-${endDay}`;
 }
 
-interface SessionCardProps {
+// Map API session_name to display title
+function getSessionTitle(sessionName: string): string {
+  const map: Record<string, string> = {
+    'Practice 1': 'FP1',
+    'Practice 2': 'FP2',
+    'Practice 3': 'FP3',
+    'Qualifying': 'QUALIFYING',
+    'Race': 'RACE',
+    'Sprint': 'SPRINT',
+    'Sprint Qualifying': 'SPRINT QUALI',
+    'Sprint Shootout': 'SPRINT QUALI',
+  };
+  return map[sessionName] || sessionName.toUpperCase();
+}
+
+function formatDriverName(driver: Driver): string {
+  if (driver.name_acronym) return driver.name_acronym;
+  if (driver.last_name) return driver.last_name.toUpperCase().slice(0, 3);
+  return `#${driver.driver_number}`;
+}
+
+interface SessionRowProps {
   title: string;
   results: SessionResult[];
   isComplete?: boolean;
 }
 
-function SessionRow({ title, results, isComplete = false }: SessionCardProps) {
+function SessionRow({ title, results, isComplete = false }: SessionRowProps) {
   return (
     <div className="flex items-center h-12 px-4 bg-f1-bg-secondary/80 rounded border-l-2 border-l-f1-accent-red border-y border-r border-f1-border/50">
       <div className={`text-sm font-bold tracking-wide w-28 ${isComplete ? 'text-f1-text-primary' : 'text-f1-text-muted'}`}>
@@ -74,29 +103,95 @@ function SessionRow({ title, results, isComplete = false }: SessionCardProps) {
 }
 
 export function RaceDetailView({ meeting, isSprintWeekend = false, isPreviousRace = false }: RaceDetailViewProps) {
+  const [sessionData, setSessionData] = useState<SessionData[]>([]);
+  const [loading, setLoading] = useState(isPreviousRace);
   const circuitImage = getCircuitImage(meeting);
   const gpName = meeting.meeting_name.replace('Grand Prix', 'GP');
   const headerLabel = isPreviousRace ? 'LAST RACE' : 'UP NEXT';
 
-  // Regular weekend sessions - show as complete for previous race
-  const regularSessions = [
-    { title: 'FP1', results: STUB_RESULTS, isComplete: isPreviousRace },
-    { title: 'FP2', results: STUB_RESULTS, isComplete: isPreviousRace },
-    { title: 'FP3', results: STUB_RESULTS, isComplete: isPreviousRace },
-    { title: 'QUALIFYING', results: STUB_RESULTS, isComplete: isPreviousRace },
-    { title: 'RACE', results: STUB_RESULTS, isComplete: isPreviousRace },
-  ];
+  useEffect(() => {
+    if (!isPreviousRace) {
+      // For upcoming races, just show session titles with "Upcoming"
+      const titles = isSprintWeekend
+        ? ['FP1', 'SPRINT QUALI', 'SPRINT', 'QUALIFYING', 'RACE']
+        : ['FP1', 'FP2', 'FP3', 'QUALIFYING', 'RACE'];
+      setSessionData(titles.map(title => ({ title, results: [], isComplete: false })));
+      return;
+    }
 
-  // Sprint weekend sessions
-  const sprintSessions = [
-    { title: 'FP1', results: STUB_RESULTS, isComplete: isPreviousRace },
-    { title: 'SPRINT QUALI', results: STUB_RESULTS, isComplete: isPreviousRace },
-    { title: 'SPRINT', results: STUB_RESULTS, isComplete: isPreviousRace },
-    { title: 'QUALIFYING', results: STUB_RESULTS, isComplete: isPreviousRace },
-    { title: 'RACE', results: STUB_RESULTS, isComplete: isPreviousRace },
-  ];
+    // Check cache first
+    const cached = resultsCache.get(meeting.meeting_key);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      setSessionData(cached.data);
+      setLoading(false);
+      return;
+    }
 
-  const sessions = isSprintWeekend ? sprintSessions : regularSessions;
+    let cancelled = false;
+
+    async function fetchResults() {
+      setLoading(true);
+      try {
+        const sessions = await getSessions(meeting.meeting_key);
+        const now = new Date();
+        const completedSessions = sessions
+          .filter(s => new Date(s.date_end) < now)
+          .sort((a, b) => new Date(a.date_start).getTime() - new Date(b.date_start).getTime());
+
+        // Fetch drivers once for the whole meeting
+        await delay(300);
+        const drivers = await getDriversBySession(completedSessions[0]?.session_key ?? sessions[0]?.session_key);
+        const driverMap = new Map<number, Driver>();
+        for (const d of drivers) {
+          driverMap.set(d.driver_number, d);
+        }
+
+        const results: SessionData[] = [];
+
+        for (const session of completedSessions) {
+          try {
+            await delay(300);
+            const positions = await getRaceResults(session.session_key);
+
+            const top3: SessionResult[] = positions.slice(0, 3).map(pos => {
+              const driver = driverMap.get(pos.driver_number);
+              return {
+                position: pos.position,
+                driver: driver ? formatDriverName(driver) : `#${pos.driver_number}`,
+                team: driver?.team_name || '',
+              };
+            });
+
+            results.push({
+              title: getSessionTitle(session.session_name),
+              results: top3,
+              isComplete: true,
+            });
+          } catch {
+            results.push({
+              title: getSessionTitle(session.session_name),
+              results: [],
+              isComplete: false,
+            });
+          }
+        }
+
+        if (!cancelled) {
+          setSessionData(results);
+          resultsCache.set(meeting.meeting_key, { data: results, timestamp: Date.now() });
+        }
+      } catch (e) {
+        console.error('Failed to fetch race results:', e);
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    fetchResults();
+    return () => { cancelled = true; };
+  }, [meeting.meeting_key, isPreviousRace, isSprintWeekend]);
 
   return (
     <div className="h-full flex flex-col p-3">
@@ -143,14 +238,18 @@ export function RaceDetailView({ meeting, isSprintWeekend = false, isPreviousRac
 
       {/* Session results as styled rows */}
       <div className="flex-shrink-0 space-y-1 mt-1">
-        {sessions.map((session) => (
-          <SessionRow
-            key={session.title}
-            title={session.title}
-            results={session.results}
-            isComplete={session.isComplete}
-          />
-        ))}
+        {loading ? (
+          <div className="text-center text-f1-text-muted text-sm py-4">Loading results...</div>
+        ) : (
+          sessionData.map((session) => (
+            <SessionRow
+              key={session.title}
+              title={session.title}
+              results={session.results}
+              isComplete={session.isComplete}
+            />
+          ))
+        )}
       </div>
     </div>
   );

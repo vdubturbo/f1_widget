@@ -20,8 +20,15 @@ export function useRotation(totalViews: number, intervalMs: number = 10000) {
     }
   }, [totalViews, currentIndex]);
 
+  const goToIndex = (index: number) => {
+    if (index >= 0 && index < totalViews) {
+      setCurrentIndex(index);
+    }
+  };
+
   return {
     currentIndex,
     totalViews,
+    goToIndex,
   };
 }

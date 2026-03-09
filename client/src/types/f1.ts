@@ -208,6 +208,40 @@ export const TEAM_COLORS: Record<string, string> = {
   'Cadillac': '#D4AF37',
 };
 
+// Team logo URLs from the F1 media CDN
+const LOGO_BASE = 'https://media.formula1.com/image/upload/f_auto,c_limit,q_75,w_1320/content/dam/fom-website/2018-redesign-assets/team%20logos';
+
+// Map API team names to CDN slug
+const TEAM_LOGO_SLUGS: Record<string, string> = {
+  'Mercedes': 'mercedes',
+  'Ferrari': 'ferrari',
+  'McLaren': 'mclaren',
+  'Red Bull Racing': 'red%20bull',
+  'Aston Martin': 'aston%20martin',
+  'Alpine': 'alpine',
+  'Williams': 'williams',
+  'Racing Bulls': 'rb',
+  'Haas F1 Team': 'haas',
+  'Audi': 'kick%20sauber',
+  'Cadillac': 'cadillac',
+  'Kick Sauber': 'kick%20sauber',
+  'RB': 'rb',
+  'Visa Cash App RB': 'rb',
+  'Sauber': 'kick%20sauber',
+};
+
+// Teams with local logo overrides (CDN broken or unavailable)
+const LOCAL_LOGOS: Record<string, string> = {
+  'Cadillac': '/cadillac.png',
+};
+
+export function getTeamLogoUrl(teamName: string): string | null {
+  if (LOCAL_LOGOS[teamName]) return LOCAL_LOGOS[teamName];
+  const slug = TEAM_LOGO_SLUGS[teamName];
+  if (!slug) return null;
+  return `${LOGO_BASE}/${slug}`;
+}
+
 // Circuit images from GitHub (toUpperCase78/formula1-datasets)
 const GITHUB_BASE = 'https://raw.githubusercontent.com/toUpperCase78/formula1-datasets/master/F1%20Race%20Tracks';
 

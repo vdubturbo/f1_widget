@@ -41,20 +41,19 @@ export function ConstructorStandings({
   const displayStandings = standings.slice(startIndex, startIndex + itemsPerPage);
 
   return (
-    <div className="h-full flex flex-col p-4">
-      <div className="flex-1 flex flex-col justify-center space-y-2">
-        {displayStandings.map((team) => {
-          const teamColor = getTeamColor(team.team_name, team.team_colour);
-          const barWidth = (team.points_current / maxPoints) * 100;
+    <div className="h-full flex flex-col px-4 py-3 gap-1">
+      {displayStandings.map((team) => {
+        const teamColor = getTeamColor(team.team_name, team.team_colour);
+        const barWidth = (team.points_current / maxPoints) * 100;
 
-          return (
-            <div
-              key={team.team_name}
-              className="bg-f1-bg-secondary rounded p-2.5 border border-f1-border"
-            >
-              <div className="flex items-center gap-2">
+        return (
+          <div
+            key={team.team_name}
+            className="flex-1 min-h-0 bg-f1-bg-secondary rounded px-2.5 border border-f1-border flex items-center"
+          >
+              <div className="flex items-center gap-2 w-full">
                 {/* Position */}
-                <div className="text-lg font-bold text-f1-text-primary w-7 text-right">
+                <div className="text-lg font-bold text-f1-text-primary w-7 text-right flex-shrink-0">
                   {team.position_current}.
                 </div>
 
@@ -88,9 +87,8 @@ export function ConstructorStandings({
                 </div>
               </div>
             </div>
-          );
-        })}
-      </div>
+        );
+      })}
     </div>
   );
 }

@@ -41,21 +41,20 @@ export function DriverStandings({
   const displayStandings = standings.slice(startIndex, startIndex + itemsPerPage);
 
   return (
-    <div className="h-full flex flex-col p-4">
-      <div className="flex-1 flex flex-col justify-center space-y-1.5">
-        {displayStandings.map((driver) => {
-          const teamColor = getTeamColor(driver.team_name, driver.team_colour);
-          const barWidth = (driver.points_current / maxPoints) * 100;
+    <div className="h-full flex flex-col px-4 py-3 gap-1">
+      {displayStandings.map((driver, index) => {
+        const teamColor = getTeamColor(driver.team_name, driver.team_colour);
+        const barWidth = (driver.points_current / maxPoints) * 100;
 
-          return (
-            <div
-              key={driver.driver_number}
-              className="bg-f1-bg-secondary rounded p-2 border border-f1-border"
-            >
-              <div className="flex items-center gap-2">
+        return (
+          <div
+            key={driver.driver_number}
+            className="flex-1 min-h-0 bg-f1-bg-secondary rounded px-2 border border-f1-border flex items-center"
+          >
+              <div className="flex items-center gap-2 w-full">
                 {/* Position */}
-                <div className="text-base font-bold text-f1-text-primary w-6 text-right">
-                  {driver.position_current}.
+                <div className="text-base font-bold text-f1-text-primary w-6 text-right flex-shrink-0">
+                  {startIndex + index + 1}.
                 </div>
 
                 {/* Team color indicator */}
@@ -88,9 +87,8 @@ export function DriverStandings({
                 </div>
               </div>
             </div>
-          );
-        })}
-      </div>
+        );
+      })}
     </div>
   );
 }

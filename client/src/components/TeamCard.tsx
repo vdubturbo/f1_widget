@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { TeamCardData, ConstructorStanding, EnrichedDriverStanding, Meeting } from '../types/f1';
-import { TEAM_COLORS } from '../types/f1';
+import { TEAM_COLORS, getTeamLogoUrl } from '../types/f1';
 import { getTeamCardData } from '../services/openf1';
 
 interface TeamCardProps {
@@ -119,13 +119,26 @@ export function TeamCard({ teamName, constructorStanding, driverStandings, meeti
       {/* Header: Team Info */}
       <div className="mb-4">
         <div className="flex items-start gap-4">
-          {/* Team color block */}
-          <div
-            className="w-16 h-16 rounded-lg flex items-center justify-center text-white text-2xl font-bold flex-shrink-0"
-            style={{ backgroundColor: teamColor }}
-          >
-            P{cardData.championshipPosition}
-          </div>
+          {/* Team logo or fallback color block */}
+          {(() => {
+            const logoUrl = getTeamLogoUrl(cardData.teamName);
+            return logoUrl ? (
+              <div className="w-24 h-24 rounded-lg flex items-center justify-center flex-shrink-0 bg-f1-bg-secondary border border-f1-border p-3">
+                <img
+                  src={logoUrl}
+                  alt={cardData.teamName}
+                  className="w-full h-full object-contain"
+                />
+              </div>
+            ) : (
+              <div
+                className="w-16 h-16 rounded-lg flex items-center justify-center text-white text-2xl font-bold flex-shrink-0"
+                style={{ backgroundColor: teamColor }}
+              >
+                P{cardData.championshipPosition}
+              </div>
+            );
+          })()}
 
           {/* Team info */}
           <div className="flex-1 min-w-0">

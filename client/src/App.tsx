@@ -6,7 +6,7 @@ import { useWebSocket } from './hooks/useWebSocket';
 import { ConfigProvider } from './hooks/useConfig';
 
 function App() {
-  const [showIntro, setShowIntro] = useState(true);
+  const [showIntro, setShowIntro] = useState(false);
 
   // Establish WebSocket connection for viewer tracking
   useWebSocket();
