@@ -151,6 +151,7 @@ export function UserConfigMenu({ isOpen, onClose, drivers = [], teams = [] }: Us
                 type="range"
                 min={adminConfig.intervalRange.min}
                 max={adminConfig.intervalRange.max}
+                step={1000}
                 value={userConfig.interval}
                 onChange={handleIntervalChange}
                 className="w-full accent-f1-accent-red"
